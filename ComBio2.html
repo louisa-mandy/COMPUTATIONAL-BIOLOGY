@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zygote-to-Baby Morphing Simulator</title>
+    
+    <!-- PyScript setup -->
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css">
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+    <py-config>
+packages = [
+    "numpy",
+    "matplotlib",
+    "opencv-python"
+]
+    </py-config>
+</head>
+<body style="background-color:#f9fafb; font-family:Consolas, monospace; color:#222;">
+<h2 style="color:#2a4d7a;">🧬 Zygote → Baby Morphing Simulator (Image-Based)</h2>
+<p>This visualization simulates the morphing stages of human development — <b>Germinal → Embryonic → Fetal</b> — by tracing silhouettes and smoothly transforming between them.</p>
+
+<!-- Output container -->
+<div id="sim-output" style="margin-top:20px; background:white; border:2px solid #d4d4d4; min-height:400px; padding:10px;"></div>
+
+<py-script>
+from pyscript import Element
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+# -----------------------------------------
+# 1. Extract Shape Contour from Image
+# -----------------------------------------
+def extract_shape(image_path, threshold_val=120):
+    """Extract outline contour from image."""
+    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        raise FileNotFoundError(f"⚠️ Could not find image: {image_path}")
+    
+    # Binary threshold
+    _, th = cv2.threshold(img, threshold_val, 255, cv2.THRESH_BINARY_INV)
+    contours, _ = cv2.findContours(th, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if len(contours) == 0:
+        raise ValueError(f"No contour found in {image_path}")
+    
+    # Take the largest contour (main shape)
+    contour = max(contours, key=cv2.contourArea)
+    shape = contour.squeeze()
+    
+    # Normalize & center
+    shape = shape - shape.mean(axis=0)
+    shape = shape / np.max(np.abs(shape)) * 1.5
+    return shape
+
+# -----------------------------------------
+# 2. Load stage silhouettes
+# -----------------------------------------
+try:
+    germinal = extract_shape("germinal.png")
+    embryonic = extract_shape("embryonic.png")
+    fetal = extract_shape("fetal.png")
+    shapes = [germinal, embryonic, fetal]
+except Exception as e:
+    Element("sim-output").write(f"<b style='color:red;'>Error loading images:</b> {e}")
+    shapes = []
+
+# -----------------------------------------
+# 3. Morphing function
+# -----------------------------------------
+def morph_shape(a, b, alpha):
+    """Smoothly interpolate between two shapes."""
+    min_len = min(len(a), len(b))
+    a, b = a[:min_len], b[:min_len]
+    return (1 - alpha) * a + alpha * b
+
+# -----------------------------------------
+# 4. Animation Simulation
+# -----------------------------------------
+def simulate_growth():
+    if not shapes:
+        return
+    
+    stages = ["Germinal", "Embryonic", "Fetal"]
+    fig, ax = plt.subplots(figsize=(6,6))
+    ax.set_xlim(-2,2)
+    ax.set_ylim(-2,2)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    title = ax.set_title("Stage: Germinal", fontsize=14, color="#2a4d7a", fontweight='bold')
+    line, = ax.plot([], [], color='salmon', lw=3)
+
+    frames_per_stage = 60
+    total_frames = frames_per_stage * (len(stages)-1)
+
+    def update(frame):
+        s = frame // frames_per_stage
+        local = frame % frames_per_stage
+        alpha = local / frames_per_stage
+        if s >= len(stages)-1:
+            s = len(stages)-2
+
+        # Morph between current & next
+        morph = morph_shape(shapes[s], shapes[s+1], alpha)
+        line.set_data(morph[:,0], morph[:,1])
+        title.set_text(f"{stages[s]} → {stages[s+1]} (Frame {frame})")
+        return line, title
+
+    ani = FuncAnimation(fig, update, frames=total_frames, interval=120, blit=False)
+    plt.close(fig)
+    Element("sim-output").element.innerHTML = ani.to_jshtml()
+
+simulate_growth()
+</py-script>
+
+<p style="font-size:14px; color:#444;">
+💡 <b>Instructions:</b><br>
+1️⃣ Save this file as <code>zygote_morph.html</code>.<br>
+2️⃣ Place <code>germinal.png</code>, <code>embryonic.png</code>, and <code>fetal.png</code> in the same folder.<br>
+3️⃣ Open the HTML file in your browser.<br>
+4️⃣ Watch the smooth morphing from germinal → embryonic → fetal stage!
+</p>
+</body>
+</html>

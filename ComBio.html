@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zygote-to-Baby Evolution Simulator</title>
+    
+    <!-- PyScript to run the Python simulation directly in the browser -->
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css">
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+    <py-config>
+packages = [
+    "numpy",
+    "matplotlib"
+]
+    </py-config>
+</head>
+<body style="background-color:#f7f9fc; font-family:Consolas, monospace; color:#222;">
+
+<h2 style="color:#2a4d7a;">🧬 Interactive Zygote-to-Baby Evolution Simulator (with Stage Labels + Color Legend)</h2>
+<p><b>Description:</b> This simulation models embryonic development — from a single zygote to a multi-layered embryo — using basic biological rules of cell division and differentiation. It includes a dynamic stage label and a legend for visual clarity.</p>
+
+<pre style="background-color:#eef3f8; border-left:6px solid #2a4d7a; padding:15px; overflow:auto; font-size:14px;">
+
+# Interactive Zygote-to-Baby Evolution Simulator with Stage Labels + Color Legend
+# Works in Jupyter Notebook / JupyterLab (HTML animation)
+# No ML – pure biological simulation and visualization
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from IPython.display import HTML
+from ipywidgets import interact, IntSlider, FloatSlider
+
+# -------------------------------------
+# Simulation Function
+# -------------------------------------
+def zygote_simulator(max_generations=6, division_delay=8, growth_factor=0.9, 
+                     drift_strength=0.02, differentiation_depth=0.6):
+    """
+    Simulate conceptual growth of a zygote into an embryo with visualized stages and color legend.
+    """
+    # Define colors and labels for cell types
+    colors = ['gold', 'skyblue', 'salmon', 'lightgreen']
+    labels = ['Zygote / Early', 'Ectoderm', 'Mesoderm', 'Endoderm']
+
+    # Initialize cells
+    cells = [{'pos': np.array([0.0, 0.0]), 'gen': 0, 'type': 0}]
+    frames = 220
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(7,6))
+    ax.set_xlim(-10, 10)
+    ax.set_ylim(-10, 10)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    # Title and text annotations
+    title = ax.set_title("Zygote → Embryo Growth Simulation", fontsize=14, fontweight='bold')
+    stage_text = ax.text(-9, 9, "Stage: Zygote", fontsize=12, fontweight='bold', color='black')
+
+    # Scatter for cells
+    scatter = ax.scatter([], [], s=150, edgecolors='k')
+
+    # Add legend manually (color-coded)
+    for i, (label, color) in enumerate(zip(labels, colors)):
+        ax.scatter([], [], c=color, label=label, edgecolors='k')
+    ax.legend(frameon=False, loc='lower right', title="Cell Types")
+
+    # Update function for animation
+    def update(frame):
+        nonlocal cells
+
+        # Every few frames, cells divide
+        if frame % division_delay == 0 and len(cells) < 2**max_generations:
+            new_cells = []
+            for cell in cells:
+                if cell['gen'] < max_generations:
+                    angle1 = np.random.uniform(0, 2*np.pi)
+                    angle2 = angle1 + np.pi
+                    offset1 = growth_factor * np.array([np.cos(angle1), np.sin(angle1)])
+                    offset2 = growth_factor * np.array([np.cos(angle2), np.sin(angle2)])
+                    new_cells.append({'pos': cell['pos'] + offset1, 'gen': cell['gen']+1, 'type': 0})
+                    new_cells.append({'pos': cell['pos'] + offset2, 'gen': cell['gen']+1, 'type': 0})
+            cells.extend(new_cells)
+
+            # Differentiation by generation depth
+            for c in cells:
+                g = c['gen']
+                if g > max_generations * differentiation_depth:
+                    c['type'] = 3  # Endoderm
+                elif g > max_generations * 0.6:
+                    c['type'] = 2  # Mesoderm
+                elif g > max_generations * 0.3:
+                    c['type'] = 1  # Ectoderm
+                else:
+                    c['type'] = 0  # Early (Zygote)
+
+        # Random drift to simulate growth
+        for c in cells:
+            c['pos'] += np.random.normal(0, drift_strength, 2)
+
+        # Extract positions and colors
+        positions = np.array([c['pos'] for c in cells])
+        color_list = [colors[c['type']] for c in cells]
+
+        scatter.set_offsets(positions)
+        scatter.set_color(color_list)
+        scatter.set_sizes([150 - c['gen']*10 for c in cells])
+
+        # Determine biological stage based on number of cells
+        num_cells = len(cells)
+        if num_cells < 8:
+            stage = "Zygote"
+        elif num_cells < 40:
+            stage = "Blastula"
+        elif num_cells < 150:
+            stage = "Gastrula"
+        else:
+            stage = "Fetus"
+
+        # Update text dynamically
+        title.set_text(f"Zygote → Embryo Simulation | Cells: {num_cells}")
+        stage_text.set_text(f"Stage: {stage}")
+
+        return scatter, stage_text
+
+    # Create animation and export as HTML
+    ani = FuncAnimation(fig, update, frames=frames, interval=100, blit=False)
+    plt.close(fig)
+    return HTML(ani.to_jshtml())
+
+# -------------------------------------
+# Interactive Widgets
+# -------------------------------------
+interact(
+    zygote_simulator,
+    max_generations=IntSlider(value=6, min=3, max=9, step=1, description='Max Generations'),
+    division_delay=IntSlider(value=8, min=3, max=15, step=1, description='Division Speed'),
+    growth_factor=FloatSlider(value=0.9, min=0.5, max=1.5, step=0.1, description='Growth Factor'),
+    drift_strength=FloatSlider(value=0.02, min=0.0, max=0.05, step=0.005, description='Cell Drift'),
+    differentiation_depth=FloatSlider(value=0.6, min=0.3, max=0.9, step=0.05, description='Diff. Depth'),
+);
+
+</pre>
+
+<!-- Runnable in-browser version (PyScript) -->
+<div style="margin-top:18px; padding:14px; background:#eef9f0; border-left:6px solid #2a7a3b;">
+    <div style="font-weight:bold; color:#2a7a3b; margin-bottom:8px;">Run In Browser (no Jupyter needed)</div>
+    <div id="sim-output" style="background:white; border:1px solid #cfe8d6; padding:8px; min-height:120px; overflow:auto;"></div>
+    <div style="color:#3a3a3a; font-size:13px; margin-top:8px;">
+        Note: This renders once with default parameters in the browser using PyScript. For interactive sliders, use the Jupyter instructions below.
+    </div>
+</div>
+
+<py-script>
+from pyscript import Element
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+
+def zygote_simulator(max_generations=6, division_delay=8, growth_factor=0.9, 
+                     drift_strength=0.02, differentiation_depth=0.6):
+    """
+    Simulate conceptual growth of a zygote into an embryo and return HTML/JS animation.
+    """
+    colors = ['gold', 'skyblue', 'salmon', 'lightgreen']
+    labels = ['Zygote / Early', 'Ectoderm', 'Mesoderm', 'Endoderm']
+
+    cells = [{'pos': np.array([0.0, 0.0]), 'gen': 0, 'type': 0}]
+    frames = 220
+
+    fig, ax = plt.subplots(figsize=(7, 6))
+    ax.set_xlim(-10, 10)
+    ax.set_ylim(-10, 10)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    title = ax.set_title("Zygote → Embryo Growth Simulation", fontsize=14, fontweight='bold')
+    stage_text = ax.text(-9, 9, "Stage: Zygote", fontsize=12, fontweight='bold', color='black')
+
+    scatter = ax.scatter([], [], s=150, edgecolors='k')
+
+    for label, color in zip(labels, colors):
+        ax.scatter([], [], c=color, label=label, edgecolors='k')
+    ax.legend(frameon=False, loc='lower right', title="Cell Types")
+
+    def update(frame):
+        nonlocal cells
+
+        if frame % division_delay == 0 and len(cells) < 2**max_generations:
+            new_cells = []
+            for cell in cells:
+                if cell['gen'] < max_generations:
+                    angle1 = np.random.uniform(0, 2*np.pi)
+                    angle2 = angle1 + np.pi
+                    offset1 = growth_factor * np.array([np.cos(angle1), np.sin(angle1)])
+                    offset2 = growth_factor * np.array([np.cos(angle2), np.sin(angle2)])
+                    new_cells.append({'pos': cell['pos'] + offset1, 'gen': cell['gen']+1, 'type': 0})
+                    new_cells.append({'pos': cell['pos'] + offset2, 'gen': cell['gen']+1, 'type': 0})
+            cells.extend(new_cells)
+
+            for c in cells:
+                g = c['gen']
+                if g > max_generations * differentiation_depth:
+                    c['type'] = 3
+                elif g > max_generations * 0.6:
+                    c['type'] = 2
+                elif g > max_generations * 0.3:
+                    c['type'] = 1
+                else:
+                    c['type'] = 0
+
+        for c in cells:
+            c['pos'] += np.random.normal(0, drift_strength, 2)
+
+        positions = np.array([c['pos'] for c in cells])
+        color_list = [colors[c['type']] for c in cells]
+
+        scatter.set_offsets(positions)
+        scatter.set_color(color_list)
+        scatter.set_sizes([150 - c['gen']*10 for c in cells])
+
+        num_cells = len(cells)
+        if num_cells < 8:
+            stage = "Zygote"
+        elif num_cells < 40:
+            stage = "Blastula"
+        elif num_cells < 150:
+            stage = "Gastrula"
+        else:
+            stage = "Fetus"
+
+        title.set_text(f"Zygote → Embryo Simulation | Cells: {num_cells}")
+        stage_text.set_text(f"Stage: {stage}")
+
+        return scatter, stage_text
+
+    ani = FuncAnimation(fig, update, frames=frames, interval=100, blit=False)
+    plt.close(fig)
+    return ani.to_jshtml()
+
+
+def run_once():
+    html = zygote_simulator(
+        max_generations=6,
+        division_delay=8,
+        growth_factor=0.9,
+        drift_strength=0.02,
+        differentiation_depth=0.6,
+    )
+    Element("sim-output").element.innerHTML = html
+
+
+# Auto-run with defaults when the page loads
+run_once()
+</py-script>
+
+<p style="color:#444; font-size:14px;">
+💡 <b>How to run:</b><br>
+1️⃣ Open Jupyter Notebook or JupyterLab.<br>
+2️⃣ Copy this Python code into a notebook cell.<br>
+3️⃣ Run the cell.<br>
+4️⃣ Adjust sliders to regenerate the animation inline with dynamic stage labels and color legend.<br>
+</p>
+
+</body>
+</html>
