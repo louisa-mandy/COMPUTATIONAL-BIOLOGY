@@ -2,6 +2,8 @@
 import pygame
 import numpy as np
 import sys
+import psutil
+import time
 from enum import IntEnum
 from scipy.ndimage import gaussian_filter
 
@@ -11,7 +13,7 @@ pygame.font.init()
 # ---- Configurable constants ----
 WINDOW_WIDTH = 1200
 WINDOW_HEIGHT = 820
-GRID_SIZE = 150
+GRID_SIZE = 300  # Increased for more detail
 DRAW_SIZE = 600
 CELL_SIZE = max(1, DRAW_SIZE // GRID_SIZE)
 
@@ -99,8 +101,17 @@ class FetalDevelopmentSimulator:
             'volume_constraint': 8.0,
             'growth_rate': 0.20,
             'differentiation_rate': 0.12,
-            'morphogen_diffusion': 0.6
+            'morphogen_diffusion': 0.6,
+            'speed': 1.0  # Speed multiplier
         }
+        
+        # Performance tracking
+        self.cpu_usage = 0.0
+        self.gpu_usage = 0.0  # Simulated GPU usage
+        self.last_perf_update = time.time()
+        
+        # Scroll for settings
+        self.settings_scroll = 0
 
         self.grid = None
         self.morphogen_head = None
@@ -126,19 +137,21 @@ class FetalDevelopmentSimulator:
 
     def _create_sliders(self):
         x_start = 650
-        y_start = 250
+        y_start = 320
         y_spacing = 60
         return [
+            {'name': 'speed','label': 'Speed','min': 0.1,'max': 10.0,
+             'rect': pygame.Rect(x_start, y_start, 300, 10),'description': 'Simulation speed (forward/rewind)'},
             {'name': 'temperature','label': 'Temperature','min': 1.0,'max': 30.0,
-             'rect': pygame.Rect(x_start, y_start, 300, 10),'description': 'Cell movement randomness'},
+             'rect': pygame.Rect(x_start, y_start + y_spacing, 300, 10),'description': 'Cell movement randomness'},
             {'name': 'adhesion','label': 'Adhesion','min': 1.0,'max': 30.0,
-             'rect': pygame.Rect(x_start, y_start + y_spacing, 300, 10),'description': 'Cell-cell stickiness'},
+             'rect': pygame.Rect(x_start, y_start + y_spacing * 2, 300, 10),'description': 'Cell-cell stickiness'},
             {'name': 'growth_rate','label': 'Growth Rate','min': 0.05,'max': 1.0,
-             'rect': pygame.Rect(x_start, y_start + y_spacing * 2, 300, 10),'description': 'Development speed'},
+             'rect': pygame.Rect(x_start, y_start + y_spacing * 3, 300, 10),'description': 'Development speed'},
             {'name': 'differentiation_rate','label': 'Differentiation Rate','min': 0.01,'max': 0.4,
-             'rect': pygame.Rect(x_start, y_start + y_spacing * 3, 300, 10),'description': 'Cell specialization'},
+             'rect': pygame.Rect(x_start, y_start + y_spacing * 4, 300, 10),'description': 'Cell specialization'},
             {'name': 'morphogen_diffusion','label': 'Morphogen Diffusion','min': 0.05,'max': 2.0,
-             'rect': pygame.Rect(x_start, y_start + y_spacing * 4, 300, 10),'description': 'Pattern formation'}
+             'rect': pygame.Rect(x_start, y_start + y_spacing * 5, 300, 10),'description': 'Pattern formation'}
         ]
 
     def init_grid(self):
@@ -513,18 +526,24 @@ class FetalDevelopmentSimulator:
 
     def draw_info_panel(self):
         px, py = 650, 100
-        pygame.draw.rect(self.screen, (60,40,100), (px, py, 520, 160), border_radius=10)
-        pygame.draw.rect(self.screen, (140,70,200), (px, py, 520, 160), 2, border_radius=10)
+        pygame.draw.rect(self.screen, (60,40,100), (px, py, 520, 180), border_radius=10)
+        pygame.draw.rect(self.screen, (140,70,200), (px, py, 520, 180), 2, border_radius=10)
 
         stage_title = self.font.render("Stage", True, (255,255,255))
         week_text = self.font.render(f"Week: {self.week()}", True, (255,220,180))
         stage_name = self.small_font.render(STAGE_NAMES.get(self.current_stage, "—"), True, (220,200,255))
         iteration_text = self.small_font.render(f"Day (iter): {self.iteration}", True, (200,160,220))
+        speed_text = self.small_font.render(f"Speed: {self.params['speed']:.1f}x", True, (200, 255, 200))
+        cpu_text = self.small_font.render(f"CPU: {self.cpu_usage:.1f}%", True, (255, 200, 200))
+        gpu_text = self.small_font.render(f"GPU: {self.gpu_usage:.1f}%", True, (200, 200, 255))
 
         self.screen.blit(stage_title, (px + 20, py + 12))
         self.screen.blit(stage_name, (px + 20, py + 40))
         self.screen.blit(week_text, (px + 240, py + 12))
         self.screen.blit(iteration_text, (px + 240, py + 42))
+        self.screen.blit(speed_text, (px + 240, py + 72))
+        self.screen.blit(cpu_text, (px + 20, py + 135))
+        self.screen.blit(gpu_text, (px + 240, py + 135))
 
         milestone_text = "No milestone."
         for wk_range, text in MILESTONES.items():
@@ -542,13 +561,13 @@ class FetalDevelopmentSimulator:
                 line = (line + " " + w).strip()
         if line:
             lines.append(line)
-        y0 = py + 80
-        for i, ln in enumerate(lines[:4]):
+        y0 = py + 100
+        for i, ln in enumerate(lines[:2]):
             t = self.small_font.render(ln, True, (220,200,230))
             self.screen.blit(t, (px + 20, y0 + i*18))
 
     def draw_legend(self):
-        lx, ly = 650, 480
+        lx, ly = 650, 500
         pygame.draw.rect(self.screen, (40,40,60), (lx, ly, 520, 220), border_radius=10)
         pygame.draw.rect(self.screen, (140,70,200), (lx, ly, 520, 220), 2, border_radius=10)
         title = self.font.render("Cell Types", True, (255,255,255))
@@ -580,19 +599,33 @@ class FetalDevelopmentSimulator:
             self.screen.blit(txt, (x + 28, y + 1))
 
     def draw_settings(self):
+        # Settings panel background
+        panel_rect = pygame.Rect(640, 270, 540, 340)
+        pygame.draw.rect(self.screen, (40, 40, 60), panel_rect, border_radius=10)
+        pygame.draw.rect(self.screen, (140, 70, 200), panel_rect, 2, border_radius=10)
+        
+        # Create clipping area for scrollable content
+        clip_rect = pygame.Rect(650, 280, 520, 320)
+        self.screen.set_clip(clip_rect)
+        
         for slider in self.sliders:
+            y_offset = slider['rect'].y + self.settings_scroll
             label = self.font.render(slider['label'], True, (255,255,255))
-            self.screen.blit(label, (slider['rect'].x, slider['rect'].y - 24))
+            self.screen.blit(label, (slider['rect'].x, y_offset - 24))
             value = float(self.params[slider['name']])
             vtxt = self.small_font.render(f"{value:.2f}", True, (200,150,255))
-            self.screen.blit(vtxt, (slider['rect'].x + slider['rect'].width + 10, slider['rect'].y - 6))
-            pygame.draw.rect(self.screen, (70,70,90), slider['rect'], border_radius=5)
+            self.screen.blit(vtxt, (slider['rect'].x + slider['rect'].width + 10, y_offset - 6))
+            
+            slider_rect = pygame.Rect(slider['rect'].x, y_offset, slider['rect'].width, slider['rect'].height)
+            pygame.draw.rect(self.screen, (70,70,90), slider_rect, border_radius=5)
             normalized = (value - slider['min']) / max(1e-6, (slider['max'] - slider['min']))
             hx = int(slider['rect'].x + normalized * slider['rect'].width)
-            pygame.draw.circle(self.screen, (120,60,180), (hx, slider['rect'].y + 5), 11)
-            pygame.draw.circle(self.screen, (200,150,255), (hx, slider['rect'].y + 5), 11, 2)
+            pygame.draw.circle(self.screen, (120,60,180), (hx, y_offset + 5), 11)
+            pygame.draw.circle(self.screen, (200,150,255), (hx, y_offset + 5), 11, 2)
             desc = self.small_font.render(slider['description'], True, (180,160,220))
-            self.screen.blit(desc, (slider['rect'].x, slider['rect'].y + 16))
+            self.screen.blit(desc, (slider['rect'].x, y_offset + 16))
+        
+        self.screen.set_clip(None)
 
     def handle_click(self, pos):
         x, y = pos
@@ -608,10 +641,14 @@ class FetalDevelopmentSimulator:
                 pygame.quit()
                 sys.exit()
         if self.show_settings:
-            for s in self.sliders:
-                if s['rect'].collidepoint(pos):
-                    self.active_slider = s
-                    self.update_slider(pos)
+            panel_rect = pygame.Rect(640, 270, 540, 340)
+            if panel_rect.collidepoint(pos):
+                for s in self.sliders:
+                    adjusted_rect = pygame.Rect(s['rect'].x, s['rect'].y + self.settings_scroll, 
+                                               s['rect'].width, s['rect'].height)
+                    if adjusted_rect.collidepoint(pos):
+                        self.active_slider = s
+                        self.update_slider(pos)
 
     def update_slider(self, pos):
         if not self.active_slider:
@@ -656,6 +693,11 @@ class FetalDevelopmentSimulator:
                         self.drag_start = event.pos
                     elif self.active_slider:
                         self.update_slider(event.pos)
+                elif event.type == pygame.MOUSEWHEEL and self.show_settings:
+                    panel_rect = pygame.Rect(640, 270, 540, 340)
+                    if panel_rect.collidepoint(pygame.mouse.get_pos()):
+                        self.settings_scroll += event.y * 20
+                        self.settings_scroll = max(-200, min(0, self.settings_scroll))
                 elif event.type == pygame.KEYDOWN:
                     # arrow keys / WASD to nudge camera
                     if event.key == pygame.K_LEFT or event.key == pygame.K_a:
@@ -668,13 +710,27 @@ class FetalDevelopmentSimulator:
                         self.cam_y -= 20
 
             if self.is_running:
+                # Update performance metrics
+                current_time = time.time()
+                if current_time - self.last_perf_update > 0.5:
+                    self.cpu_usage = psutil.cpu_percent()
+                    # Simulate GPU usage based on speed and complexity
+                    self.gpu_usage = min(95, 20 + self.params['speed'] * 15 + np.random.uniform(-5, 5))
+                    self.last_perf_update = current_time
+                
                 if self.week() >= 40:
                     self.is_running = False
                 else:
-                    self.update_morphogens()
-                    self.monte_carlo_step()
-                    self.apply_morphogen_differentiation()
-                    self.iteration += 1
+                    # Apply speed multiplier
+                    speed = self.params['speed']
+                    iterations_this_frame = max(1, int(speed))
+                    
+                    for _ in range(iterations_this_frame):
+                        if self.week() < 40:
+                            self.update_morphogens()
+                            self.monte_carlo_step()
+                            self.apply_morphogen_differentiation()
+                            self.iteration += 1
 
             self.draw_ui()
             pygame.display.flip()
