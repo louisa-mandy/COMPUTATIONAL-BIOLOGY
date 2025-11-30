@@ -50,23 +50,24 @@ class CellType(IntEnum):
 
 # Colors for agent rendering
 COLORS = {
-    CellType.STEM: (255, 140, 160),
-    CellType.HEAD: (255, 200, 160),
-    CellType.BRAIN: (255, 160, 120),
-    CellType.BODY: (255, 150, 170),
-    CellType.ARM: (220, 130, 150),
-    CellType.LEG: (200, 110, 140),
-    CellType.PLACENTA: (120, 90, 180),
-    CellType.UMBILICAL: (160, 130, 210),
-    CellType.HEART: (255, 0, 0),
-    CellType.LIVER: (0, 0, 255),
-    CellType.STOMACH: (255, 255, 255),
-    CellType.INTESTINE: (139, 69, 19),
-    CellType.KIDNEY: (255, 255, 0),
-    CellType.LUNG: (255, 105, 180),
-    CellType.EYE: (0, 0, 0),
-    CellType.BLADDER: (0, 0, 139)
+    CellType.STEM: "#785AB4",
+    CellType.HEAD: "#FFC8A0",
+    CellType.BRAIN: "#FFA078",
+    CellType.BODY: "#FF96AA",
+    CellType.ARM: "#DC8296",
+    CellType.LEG: "#C86E8C",
+    CellType.PLACENTA: "#785AB4",
+    CellType.UMBILICAL: "#A082D2",
+    CellType.HEART: "#FF0000",
+    CellType.LIVER: "#0000FF",
+    CellType.STOMACH: "#FFFFFF",
+    CellType.INTESTINE: "#8B4513",
+    CellType.KIDNEY: "#FFFF00",
+    CellType.LUNG: "#FF69B4",
+    CellType.EYE: "#000000",
+    CellType.BLADDER: "#00008B",
 }
+
 
 # Week-based milestones (simplified)
 MILESTONES = {
@@ -145,10 +146,27 @@ class OffLatticeEngine:
             for u in CellType:
                 # base: same-type gets +0.4, different-type gets -0.1
                 self.adhesion_preferences[int(t)][int(u)] = 0.4 if t == u else -0.05
+        
+        # HEAD cells stick together VERY strongly
+        self.adhesion_preferences[int(CellType.HEAD)][int(CellType.HEAD)] = 1.2
+        self.adhesion_preferences[int(CellType.BRAIN)][int(CellType.BRAIN)] = 1.0
+        self.adhesion_preferences[int(CellType.HEAD)][int(CellType.BRAIN)] = 0.9
+        self.adhesion_preferences[int(CellType.BRAIN)][int(CellType.HEAD)] = 0.9
+        
+        # HEAD/BRAIN repel BODY
+        self.adhesion_preferences[int(CellType.HEAD)][int(CellType.BODY)] = -0.3
+        self.adhesion_preferences[int(CellType.BODY)][int(CellType.HEAD)] = -0.3
+        self.adhesion_preferences[int(CellType.BRAIN)][int(CellType.BODY)] = -0.3
+        self.adhesion_preferences[int(CellType.BODY)][int(CellType.BRAIN)] = -0.3
+        
+        # BODY cells stick together
+        self.adhesion_preferences[int(CellType.BODY)][int(CellType.BODY)] = 0.8
+        
         # make organs slightly more adhesive to body
-        self.adhesion_preferences[int(CellType.HEART)][int(CellType.BODY)] = 0.3
-        self.adhesion_preferences[int(CellType.LIVER)][int(CellType.BODY)] = 0.3
-
+        self.adhesion_preferences[int(CellType.HEART)][int(CellType.BODY)] = 0.5
+        self.adhesion_preferences[int(CellType.LIVER)][int(CellType.BODY)] = 0.5
+        self.adhesion_preferences[int(CellType.LUNG)][int(CellType.BODY)] = 0.5
+        
     def week(self):
         # map iteration -> week roughly (7 iterations per week)
         return min(40, max(1, (self.iteration // 7) + 1))
@@ -181,37 +199,49 @@ class OffLatticeEngine:
                 dx = c.x - other.x
                 dy = c.y - other.y
                 dist = math.hypot(dx, dy) + 1e-6
-                # short-range strong repulsion to prevent overlap
-                preferred_dist = 2.8
+                # INCREASED preferred distance to prevent overlap
+                preferred_dist = 4.5  # INCREASED from 2.8 to 4.5
                 if dist < 0.1:
                     # numerical safety
                     continue
-                # repulsion
+                # MUCH STRONGER repulsion to prevent layering
                 if dist < preferred_dist:
-                    rep = (preferred_dist - dist) * 1.0
+                    rep = (preferred_dist - dist) * 3.5  # INCREASED from 1.0 to 3.5
                     fx += (dx/dist) * rep
                     fy += (dy/dist) * rep
                 # adhesion (attractive) beyond preferred up to some radius
-                elif dist < 15:
+                elif dist < 18:  # Slightly increased adhesion range
                     # adhesion strength depends on types
                     a_pref = self.adhesion_preferences.get(c.type, {}).get(other.type, 0.0)
-                    adh = a_pref * self.params['adhesion_base'] * (1 - (dist- preferred_dist)/12)
+                    adh = a_pref * self.params['adhesion_base'] * (1 - (dist- preferred_dist)/14)
                     fx -= (dx/dist) * adh
                     fy -= (dy/dist) * adh
+                    
+            # Add centripetal force to pull HEAD cells toward head center
+            if c.type == int(CellType.HEAD) or c.type == int(CellType.BRAIN):
+                head_cx = self.area_w / 2
+                head_cy = self.area_h / 2 - 70  # Head center position
+                to_center_x = head_cx - c.x
+                to_center_y = head_cy - c.y
+                dist_to_center = math.hypot(to_center_x, to_center_y)
+                if dist_to_center > 5:  # Only apply if not already at center
+                    pull_strength = 0.2  # REDUCED from 0.3 to 0.2
+                    fx += (to_center_x / dist_to_center) * pull_strength
+                    fy += (to_center_y / dist_to_center) * pull_strength
 
             # small noise
             temp = self.params['temperature']
-            fx += (RNG.random()-0.5) * temp
-            fy += (RNG.random()-0.5) * temp
+            fx += (RNG.random()-0.5) * temp * 0.5  # Reduced noise
+            fy += (RNG.random()-0.5) * temp * 0.5
 
             cell_forces[i] = (fx, fy)
 
         # integrate velocities and positions
         for i, c in enumerate(self.cells):
             fx, fy = cell_forces[i]
-            # simple overdamped dynamics
-            c.vx = (c.vx + fx * 0.2) * 0.9
-            c.vy = (c.vy + fy * 0.2) * 0.9
+            # simple overdamped dynamics with MORE damping
+            c.vx = (c.vx + fx * 0.2) * 0.85  # INCREASED damping from 0.9 to 0.85
+            c.vy = (c.vy + fy * 0.2) * 0.85
             c.x += c.vx * dt * self.params['speed']
             c.y += c.vy * dt * self.params['speed']
             # confine to area with soft boundary
@@ -226,7 +256,7 @@ class OffLatticeEngine:
         # division & differentiation
         self._division_pass()
         self._differentiation_pass()
-
+        
     def _division_pass(self):
         # probabilistic division based on growth_rate and local crowding
         new_cells = []
@@ -250,10 +280,6 @@ class OffLatticeEngine:
         template = self._anatomical_template(w)
         
         for c in self.cells:
-            # if already organ, skip most changes
-            if c.type >= 20:
-                continue
-            
             # Morphogen gradient influence based on position
             cx, cy = self.area_w/2, self.area_h/2
             
@@ -266,7 +292,10 @@ class OffLatticeEngine:
             morphogen_head = math.exp(-head_dist / (40 * self.params['morphogen_diffusion']))
             morphogen_body = math.exp(-body_dist / (50 * self.params['morphogen_diffusion']))
             
-            # Template anchor zones
+            # Template anchor zones - prioritize head/brain first
+            best_target = None
+            best_score = -1
+            
             for name, anchor in template.items():
                 ax, ay, ar = anchor
                 dx = c.x - ax
@@ -277,53 +306,75 @@ class OffLatticeEngine:
                 if dist < ar * 1.2:  # 20% tolerance
                     # decide organ type mapping
                     target = None
-                    if name.startswith('heart'):
-                        target = CellType.HEART
-                    elif name.startswith('liver'):
-                        target = CellType.LIVER
-                    elif name.startswith('stomach'):
-                        target = CellType.STOMACH
-                    elif name.startswith('intestine'):
-                        target = CellType.INTESTINE
-                    elif name.startswith('kidney'):
-                        target = CellType.KIDNEY
-                    elif name.startswith('lungs'):
-                        target = CellType.LUNG
-                    elif name.startswith('eye'):
-                        target = CellType.EYE
-                    elif name.startswith('bladder'):
-                        target = CellType.BLADDER
-                    elif name.startswith('head'):
+                    priority = 0  # Higher priority = differentiate first
+                    
+                    if name.startswith('head'):
                         target = CellType.HEAD
+                        priority = 100  # Highest priority
                     elif name.startswith('brain'):
                         target = CellType.BRAIN
-                    elif name.startswith('arm'):
-                        target = CellType.ARM
-                    elif name.startswith('leg'):
-                        target = CellType.LEG
+                        priority = 95
                     elif name.startswith('body'):
                         target = CellType.BODY
+                        priority = 50
+                    elif name.startswith('arm'):
+                        target = CellType.ARM
+                        priority = 40
+                    elif name.startswith('leg'):
+                        target = CellType.LEG
+                        priority = 40
+                    elif name.startswith('heart'):
+                        target = CellType.HEART
+                        priority = 30
+                    elif name.startswith('liver'):
+                        target = CellType.LIVER
+                        priority = 25
+                    elif name.startswith('stomach'):
+                        target = CellType.STOMACH
+                        priority = 20
+                    elif name.startswith('intestine'):
+                        target = CellType.INTESTINE
+                        priority = 20
+                    elif name.startswith('kidney'):
+                        target = CellType.KIDNEY
+                        priority = 20
+                    elif name.startswith('lungs'):
+                        target = CellType.LUNG
+                        priority = 25
+                    elif name.startswith('eye'):
+                        target = CellType.EYE
+                        priority = 35
+                    elif name.startswith('bladder'):
+                        target = CellType.BLADDER
+                        priority = 15
 
                     if target is not None:
                         # Morphogen-enhanced differentiation probability
                         morphogen_factor = 1.0
                         if target in (CellType.HEAD, CellType.BRAIN, CellType.EYE):
-                            morphogen_factor = 1.0 + morphogen_head * 3.0
+                            morphogen_factor = 1.0 + morphogen_head * 5.0  # Even stronger
                         else:
                             morphogen_factor = 1.0 + morphogen_body * 2.5
                         
                         # Distance-based probability (stronger near center of anchor)
                         distance_factor = 1.0 - (dist / (ar * 1.2))
                         
-                        prob = (self.params['differentiation_rate'] * 
+                        # Calculate score including priority
+                        score = (priority * 
                                 morphogen_factor * 
                                 distance_factor *
                                 (1.0 + 1.2 * math.exp(-c.age*0.005)))
                         
-                        if RNG.random() < prob:
-                            c.type = int(target)
-                            break
-                        
+                        if score > best_score:
+                            best_score = score
+                            best_target = target
+            
+            # Apply differentiation based on best match
+            if best_target is not None:
+                prob = self.params['differentiation_rate'] * (best_score / 100.0)
+                if RNG.random() < prob:
+                    c.type = int(best_target)
+                                            
     def _count_neighbors(self, cell, radius=5):
         cnt = 0
         r2 = radius*radius
@@ -342,114 +393,286 @@ class OffLatticeEngine:
         t = {}
         
         if week <= 2:
-            # Weeks 1-2: Large embryo cluster
-            t['embryo'] = (cx, cy, 20 + week * 5)
+            # Weeks 1-2: Fertilization & implantation - just a small cell cluster
+            t['embryo'] = (cx, cy, 15 + week * 3)
             
+        elif week <= 5:
+            # Weeks 3-5: Embryonic disk, early heart tube forming
+            growth = (week - 2) / (5 - 2)
+            
+            # Very early differentiation - small disk-like structure
+            t['embryo'] = (cx, cy, 20 + int(10 * growth))
+            # Early heart tube starting to form
+            if week >= 4:
+                t['heart'] = (cx, cy, 8 + int(4 * growth))
+                
         elif week <= 8:
-            # Weeks 3-8: Early embryonic differentiation
-            growth = (week - 2) / (8 - 2)
+            # Weeks 6-8: Organogenesis peak - heart beats, limb buds, facial features
+            growth = (week - 5) / (8 - 5)
             
-            # Progressive vertical separation with LARGER zones
-            head_offset = -30 - (20 * growth)  # Head moves up more
-            body_offset = 10 + (15 * growth)   # Body moves down
+            # Head and body start separating
+            head_offset = -20 - (15 * growth)
+            body_offset = 5 + (10 * growth)
             
-            t['head'] = (cx, cy + head_offset, 25 + int(15 * growth))
-            t['body'] = (cx, cy + body_offset, 30 + int(25 * growth))
+            t['head'] = (cx, cy + head_offset, 20 + int(12 * growth))
+            t['body'] = (cx, cy + body_offset, 25 + int(20 * growth))
             
+            # Heart is now beating (more prominent)
+            t['heart'] = (cx - 8, cy - 5, 10 + int(5 * growth))
+            
+            # Limb buds emerge (week 6+)
+            if week >= 6:
+                arm_y = cy - 5
+                t['arm_left'] = (cx - 30, arm_y, 12 + int(3 * growth))
+                t['arm_right'] = (cx + 30, arm_y, 12 + int(3 * growth))
+            
+            # Leg buds appear slightly later
+            if week >= 7:
+                leg_y = cy + 25
+                t['leg_left'] = (cx - 15, leg_y, 12 + int(3 * growth))
+                t['leg_right'] = (cx + 15, leg_y, 12 + int(3 * growth))
+            
+            # Eyes start forming (facial features)
+            if week >= 7:
+                t['eye_l'] = (cx - 8, cy + head_offset - 5, 3)
+                t['eye_r'] = (cx + 8, cy + head_offset - 5, 3)
+                
         elif week <= 12:
-            # Weeks 9-12: Distinct fetus with organs
+            # Weeks 9-12: Fetus forms, organs grow and refine
             growth = (week - 8) / (12 - 8)
             
-            # Main body structures - MUCH LARGER zones
-            t['head'] = (cx, cy - 70, 35 + int(8 * growth))
-            t['brain'] = (cx, cy - 70, 15 + int(5 * growth))
-            t['body'] = (cx, cy, 50 + int(15 * growth))
+            # More defined fetal structure
+            t['head'] = (cx, cy - 70, 35 + int(10 * growth))
+            t['brain'] = (cx, cy - 70, 18 + int(6 * growth))
+            t['body'] = (cx, cy, 50 + int(18 * growth))
             
-            # Limbs extending from body
+            # Limbs more developed
             arm_y = cy - 25
-            t['arm_left'] = (cx - 50, arm_y, 18 + int(5 * growth))
-            t['arm_right'] = (cx + 50, arm_y, 18 + int(5 * growth))
+            t['arm_left'] = (cx - 50, arm_y, 20 + int(5 * growth))
+            t['arm_right'] = (cx + 50, arm_y, 20 + int(5 * growth))
             
             leg_y = cy + 45
-            t['leg_left'] = (cx - 20, leg_y, 20 + int(5 * growth))
-            t['leg_right'] = (cx + 20, leg_y, 20 + int(5 * growth))
+            t['leg_left'] = (cx - 22, leg_y, 22 + int(5 * growth))
+            t['leg_right'] = (cx + 22, leg_y, 22 + int(5 * growth))
             
-            # Organs within body cavity - LARGER zones for better visibility
-            t['heart'] = (cx - 15, cy - 30, 12)
-            t['liver'] = (cx + 18, cy - 18, 15)
-            t['lungs'] = (cx, cy - 32, 14)
-            t['stomach'] = (cx - 10, cy - 5, 12)
-            t['intestine'] = (cx + 8, cy + 8, 15)
-            t['kidney_l'] = (cx - 22, cy - 10, 8)
-            t['kidney_r'] = (cx + 22, cy - 10, 8)
-            t['bladder'] = (cx, cy + 22, 10)
+            # Organs developing and refining
+            t['heart'] = (cx - 15, cy - 30, 14 + int(3 * growth))
+            t['liver'] = (cx + 18, cy - 18, 16 + int(4 * growth))
+            t['lungs'] = (cx, cy - 32, 15 + int(3 * growth))
+            t['stomach'] = (cx - 10, cy - 5, 13 + int(3 * growth))
+            t['intestine'] = (cx + 8, cy + 8, 16 + int(4 * growth))
+            t['kidney_l'] = (cx - 22, cy - 10, 9 + int(2 * growth))
+            t['kidney_r'] = (cx + 22, cy - 10, 9 + int(2 * growth))
+            t['bladder'] = (cx, cy + 22, 11 + int(2 * growth))
             
-            # Eyes on head
+            # Eyes more defined
             t['eye_l'] = (cx - 10, cy - 75, 4)
             t['eye_r'] = (cx + 10, cy - 75, 4)
             
             # Umbilical cord
-            t['umbilical'] = (cx, cy + 70, 8)
+            t['umbilical'] = (cx, cy + 70, 8 + int(2 * growth))
+            
+        elif week <= 16:
+            # Weeks 13-16: Movement increases, anatomy more human
+            growth = (week - 12) / (16 - 12)
+            
+            # Growing fetus with human proportions
+            t['head'] = (cx, cy - 90, 45 + int(8 * growth))
+            t['brain'] = (cx, cy - 90, 22 + int(6 * growth))
+            t['body'] = (cx, cy, 60 + int(15 * growth))
+            
+            # Limbs elongating
+            t['arm_left'] = (cx - 60, cy - 30, 24 + int(6 * growth))
+            t['arm_right'] = (cx + 60, cy - 30, 24 + int(6 * growth))
+            t['leg_left'] = (cx - 24, cy + 55, 26 + int(6 * growth))
+            t['leg_right'] = (cx + 24, cy + 55, 26 + int(6 * growth))
+            
+            # Organs maturing
+            t['heart'] = (cx - 18, cy - 38, 16 + int(3 * growth))
+            t['liver'] = (cx + 22, cy - 22, 19 + int(4 * growth))
+            t['lungs'] = (cx, cy - 40, 17 + int(3 * growth))
+            t['stomach'] = (cx - 12, cy - 8, 15 + int(3 * growth))
+            t['intestine'] = (cx + 10, cy + 10, 18 + int(4 * growth))
+            t['kidney_l'] = (cx - 26, cy - 12, 10 + int(2 * growth))
+            t['kidney_r'] = (cx + 26, cy - 12, 10 + int(2 * growth))
+            t['bladder'] = (cx, cy + 28, 12 + int(2 * growth))
+            
+            t['eye_l'] = (cx - 12, cy - 98, 4 + int(1 * growth))
+            t['eye_r'] = (cx + 12, cy - 98, 4 + int(1 * growth))
+            t['umbilical'] = (cx, cy + 85, 10 + int(2 * growth))
+            
+        elif week <= 20:
+            # Weeks 17-20: Quickening felt, detailed anatomy scan period
+            growth = (week - 16) / (20 - 16)
+            
+            # Well-formed fetus
+            t['head'] = (cx, cy - 105, 50 + int(8 * growth))
+            t['brain'] = (cx, cy - 105, 26 + int(6 * growth))
+            t['body'] = (cx, cy + 5, 70 + int(12 * growth))
+            
+            # Active limbs
+            t['arm_left'] = (cx - 68, cy - 35, 28 + int(6 * growth))
+            t['arm_right'] = (cx + 68, cy - 35, 28 + int(6 * growth))
+            t['leg_left'] = (cx - 26, cy + 65, 30 + int(6 * growth))
+            t['leg_right'] = (cx + 26, cy + 65, 30 + int(6 * growth))
+            
+            # All organs visible on scan
+            t['heart'] = (cx - 20, cy - 45, 18 + int(3 * growth))
+            t['liver'] = (cx + 26, cy - 28, 22 + int(4 * growth))
+            t['lungs'] = (cx, cy - 48, 20 + int(3 * growth))
+            t['stomach'] = (cx - 14, cy - 12, 16 + int(3 * growth))
+            t['intestine'] = (cx + 12, cy + 14, 22 + int(4 * growth))
+            t['kidney_l'] = (cx - 28, cy - 16, 11 + int(2 * growth))
+            t['kidney_r'] = (cx + 28, cy - 16, 11 + int(2 * growth))
+            t['bladder'] = (cx, cy + 34, 13 + int(2 * growth))
+            
+            t['eye_l'] = (cx - 14, cy - 113, 5)
+            t['eye_r'] = (cx + 14, cy - 113, 5)
+            t['umbilical'] = (cx, cy + 95, 11 + int(2 * growth))
             
         elif week <= 24:
-            # Weeks 13-24: Mid-fetal growth
-            growth = (week - 12) / (24 - 12)
+            # Weeks 21-24: Brain grows rapidly, viability threshold
+            growth = (week - 20) / (24 - 20)
             
-            # Larger body structures
-            t['head'] = (cx, cy - 100, 45 + int(10 * growth))
-            t['brain'] = (cx, cy - 100, 20 + int(8 * growth))
-            t['body'] = (cx, cy + 5, 65 + int(20 * growth))
+            # Brain development emphasis
+            t['head'] = (cx, cy - 115, 55 + int(8 * growth))
+            t['brain'] = (cx, cy - 115, 30 + int(8 * growth))  # Brain growing rapidly
+            t['body'] = (cx, cy + 8, 78 + int(12 * growth))
             
-            # Extended limbs
-            t['arm_left'] = (cx - 65, cy - 35, 22 + int(10 * growth))
-            t['arm_right'] = (cx + 65, cy - 35, 22 + int(10 * growth))
-            t['leg_left'] = (cx - 25, cy + 65, 25 + int(12 * growth))
-            t['leg_right'] = (cx + 25, cy + 65, 25 + int(12 * growth))
+            # Well-developed limbs
+            t['arm_left'] = (cx - 72, cy - 38, 32 + int(6 * growth))
+            t['arm_right'] = (cx + 72, cy - 38, 32 + int(6 * growth))
+            t['leg_left'] = (cx - 28, cy + 72, 34 + int(6 * growth))
+            t['leg_right'] = (cx + 28, cy + 72, 34 + int(6 * growth))
             
-            # Growing organs
-            t['heart'] = (cx - 20, cy - 42, 15 + int(5 * growth))
-            t['liver'] = (cx + 25, cy - 25, 18 + int(7 * growth))
-            t['lungs'] = (cx, cy - 45, 18 + int(6 * growth))
-            t['stomach'] = (cx - 15, cy - 10, 14 + int(4 * growth))
-            t['intestine'] = (cx + 12, cy + 12, 20 + int(6 * growth))
-            t['kidney_l'] = (cx - 28, cy - 15, 10 + int(4 * growth))
-            t['kidney_r'] = (cx + 28, cy - 15, 10 + int(4 * growth))
-            t['bladder'] = (cx, cy + 32, 12 + int(4 * growth))
+            # Organs maturing for viability
+            t['heart'] = (cx - 22, cy - 50, 20 + int(3 * growth))
+            t['liver'] = (cx + 28, cy - 32, 24 + int(4 * growth))
+            t['lungs'] = (cx, cy - 52, 22 + int(4 * growth))  # Lungs developing
+            t['stomach'] = (cx - 16, cy - 15, 18 + int(3 * growth))
+            t['intestine'] = (cx + 14, cy + 16, 24 + int(4 * growth))
+            t['kidney_l'] = (cx - 30, cy - 18, 12 + int(2 * growth))
+            t['kidney_r'] = (cx + 30, cy - 18, 12 + int(2 * growth))
+            t['bladder'] = (cx, cy + 38, 14 + int(2 * growth))
             
-            t['eye_l'] = (cx - 15, cy - 108, 5)
-            t['eye_r'] = (cx + 15, cy - 108, 5)
-            t['umbilical'] = (cx, cy + 95, 10)
+            t['eye_l'] = (cx - 16, cy - 123, 5 + int(1 * growth))
+            t['eye_r'] = (cx + 16, cy - 123, 5 + int(1 * growth))
+            t['umbilical'] = (cx, cy + 100, 12 + int(2 * growth))
             
-        else:
-            # Weeks 25-40: Full-term fetus
-            growth = min((week - 24) / (40 - 24), 1.0)
+        elif week <= 28:
+            # Weeks 25-28: Lungs and fat accumulation accelerate
+            growth = (week - 24) / (28 - 24)
             
-            # Maximum size structures
-            t['head'] = (cx, cy - 140, 60 + int(15 * growth))
-            t['brain'] = (cx, cy - 140, 28 + int(8 * growth))
-            t['body'] = (cx, cy + 10, 80 + int(25 * growth))
+            t['head'] = (cx, cy - 125, 60 + int(8 * growth))
+            t['brain'] = (cx, cy - 125, 35 + int(5 * growth))
+            t['body'] = (cx, cy + 10, 85 + int(12 * growth))  # Fat accumulation
             
-            # Fully developed limbs
-            t['arm_left'] = (cx - 80, cy - 45, 28 + int(12 * growth))
-            t['arm_right'] = (cx + 80, cy - 45, 28 + int(12 * growth))
-            t['leg_left'] = (cx - 30, cy + 90, 32 + int(15 * growth))
-            t['leg_right'] = (cx + 30, cy + 90, 32 + int(15 * growth))
+            # Rounded limbs (fat deposits)
+            t['arm_left'] = (cx - 76, cy - 42, 36 + int(6 * growth))
+            t['arm_right'] = (cx + 76, cy - 42, 36 + int(6 * growth))
+            t['leg_left'] = (cx - 30, cy + 78, 38 + int(6 * growth))
+            t['leg_right'] = (cx + 30, cy + 78, 38 + int(6 * growth))
+            
+            # Lung development critical
+            t['heart'] = (cx - 24, cy - 54, 22 + int(2 * growth))
+            t['liver'] = (cx + 30, cy - 35, 26 + int(3 * growth))
+            t['lungs'] = (cx, cy - 56, 25 + int(5 * growth))  # Lungs accelerating
+            t['stomach'] = (cx - 17, cy - 18, 19 + int(2 * growth))
+            t['intestine'] = (cx + 15, cy + 18, 26 + int(3 * growth))
+            t['kidney_l'] = (cx - 32, cy - 20, 13 + int(2 * growth))
+            t['kidney_r'] = (cx + 32, cy - 20, 13 + int(2 * growth))
+            t['bladder'] = (cx, cy + 40, 15 + int(2 * growth))
+            
+            t['eye_l'] = (cx - 17, cy - 133, 6)
+            t['eye_r'] = (cx + 17, cy - 133, 6)
+            t['umbilical'] = (cx, cy + 108, 13 + int(2 * growth))
+            
+        elif week <= 32:
+            # Weeks 29-32: Rapid weight gain, nervous system maturing
+            growth = (week - 28) / (32 - 28)
+            
+            t['head'] = (cx, cy - 135, 65 + int(8 * growth))
+            t['brain'] = (cx, cy - 135, 38 + int(6 * growth))  # Nervous system
+            t['body'] = (cx, cy + 12, 92 + int(12 * growth))  # Rapid weight gain
+            
+            # Fuller limbs
+            t['arm_left'] = (cx - 78, cy - 45, 40 + int(6 * growth))
+            t['arm_right'] = (cx + 78, cy - 45, 40 + int(6 * growth))
+            t['leg_left'] = (cx - 32, cy + 85, 42 + int(6 * growth))
+            t['leg_right'] = (cx + 32, cy + 85, 42 + int(6 * growth))
             
             # Mature organs
-            t['heart'] = (cx - 25, cy - 55, 18)
-            t['liver'] = (cx + 32, cy - 32, 22)
-            t['lungs'] = (cx, cy - 58, 24)
-            t['stomach'] = (cx - 18, cy - 15, 18)
-            t['intestine'] = (cx + 15, cy + 18, 25)
-            t['kidney_l'] = (cx - 35, cy - 20, 12)
-            t['kidney_r'] = (cx + 35, cy - 20, 12)
-            t['bladder'] = (cx, cy + 42, 14)
+            t['heart'] = (cx - 25, cy - 57, 23 + int(2 * growth))
+            t['liver'] = (cx + 32, cy - 37, 28 + int(3 * growth))
+            t['lungs'] = (cx, cy - 60, 28 + int(3 * growth))
+            t['stomach'] = (cx - 18, cy - 20, 20 + int(2 * growth))
+            t['intestine'] = (cx + 16, cy + 20, 28 + int(3 * growth))
+            t['kidney_l'] = (cx - 34, cy - 22, 14 + int(2 * growth))
+            t['kidney_r'] = (cx + 34, cy - 22, 14 + int(2 * growth))
+            t['bladder'] = (cx, cy + 43, 16 + int(2 * growth))
             
-            t['eye_l'] = (cx - 18, cy - 150, 6)
-            t['eye_r'] = (cx + 18, cy - 150, 6)
-            t['umbilical'] = (cx, cy + 120, 12)
+            t['eye_l'] = (cx - 18, cy - 143, 6)
+            t['eye_r'] = (cx + 18, cy - 143, 6)
+            t['umbilical'] = (cx, cy + 115, 14)
+            
+        elif week <= 36:
+            # Weeks 33-36: Final maturation, baby turns head-down
+            growth = (week - 32) / (36 - 32)
+            
+            t['head'] = (cx, cy - 145, 70 + int(8 * growth))
+            t['brain'] = (cx, cy - 145, 42 + int(6 * growth))
+            t['body'] = (cx, cy + 15, 100 + int(12 * growth))
+            
+            # Full limbs
+            t['arm_left'] = (cx - 80, cy - 48, 44 + int(6 * growth))
+            t['arm_right'] = (cx + 80, cy - 48, 44 + int(6 * growth))
+            t['leg_left'] = (cx - 34, cy + 92, 46 + int(6 * growth))
+            t['leg_right'] = (cx + 34, cy + 92, 46 + int(6 * growth))
+            
+            # Fully mature organs
+            t['heart'] = (cx - 26, cy - 60, 24)
+            t['liver'] = (cx + 34, cy - 40, 30)
+            t['lungs'] = (cx, cy - 63, 30)
+            t['stomach'] = (cx - 19, cy - 22, 21)
+            t['intestine'] = (cx + 17, cy + 22, 30)
+            t['kidney_l'] = (cx - 36, cy - 24, 15)
+            t['kidney_r'] = (cx + 36, cy - 24, 15)
+            t['bladder'] = (cx, cy + 45, 17)
+            
+            t['eye_l'] = (cx - 19, cy - 153, 6)
+            t['eye_r'] = (cx + 19, cy - 153, 6)
+            t['umbilical'] = (cx, cy + 120, 14)
+            
+        else:
+            # Weeks 37-40+: Full-term, final weight gain
+            growth = min((week - 36) / (40 - 36), 1.0)
+            
+            t['head'] = (cx, cy - 150, 75 + int(10 * growth))
+            t['brain'] = (cx, cy - 150, 46 + int(8 * growth))
+            t['body'] = (cx, cy + 18, 108 + int(15 * growth))
+            
+            # Full-term limbs
+            t['arm_left'] = (cx - 82, cy - 50, 48 + int(8 * growth))
+            t['arm_right'] = (cx + 82, cy - 50, 48 + int(8 * growth))
+            t['leg_left'] = (cx - 36, cy + 98, 50 + int(10 * growth))
+            t['leg_right'] = (cx + 36, cy + 98, 50 + int(10 * growth))
+            
+            # Full-term organs
+            t['heart'] = (cx - 27, cy - 62, 25)
+            t['liver'] = (cx + 36, cy - 42, 32)
+            t['lungs'] = (cx, cy - 65, 32)
+            t['stomach'] = (cx - 20, cy - 24, 22)
+            t['intestine'] = (cx + 18, cy + 24, 32)
+            t['kidney_l'] = (cx - 38, cy - 26, 16)
+            t['kidney_r'] = (cx + 38, cy - 26, 16)
+            t['bladder'] = (cx, cy + 48, 18)
+            
+            t['eye_l'] = (cx - 20, cy - 158, 6)
+            t['eye_r'] = (cx + 20, cy - 158, 6)
+            t['umbilical'] = (cx, cy + 125, 15)
             
         return t
+
 # ---- Pygame UI and integration ----
 class FetalDevelopmentUI:
     def __init__(self):
