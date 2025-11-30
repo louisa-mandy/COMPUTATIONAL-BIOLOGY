@@ -163,9 +163,16 @@ class OffLatticeEngine:
         self.adhesion_preferences[int(CellType.BODY)][int(CellType.BODY)] = 0.8
         
         # make organs slightly more adhesive to body
-        self.adhesion_preferences[int(CellType.HEART)][int(CellType.BODY)] = 0.5
-        self.adhesion_preferences[int(CellType.LIVER)][int(CellType.BODY)] = 0.5
-        self.adhesion_preferences[int(CellType.LUNG)][int(CellType.BODY)] = 0.5
+        self.adhesion_preferences[int(CellType.HEART)][int(CellType.BODY)] = 1.4
+        self.adhesion_preferences[int(CellType.LIVER)][int(CellType.BODY)] = 1.4
+        self.adhesion_preferences[int(CellType.LUNG)][int(CellType.BODY)] = 1.4
+
+        self.adhesion_preferences[int(CellType.STOMACH)][int(CellType.BODY)] = 1.2
+        self.adhesion_preferences[int(CellType.INTESTINE)][int(CellType.BODY)] = 1.2
+        self.adhesion_preferences[int(CellType.KIDNEY)][int(CellType.BODY)] = 1.2
+        self.adhesion_preferences[int(CellType.BLADDER)][int(CellType.BODY)] = 1.0
+        self.adhesion_preferences[int(CellType.BODY)][int(CellType.HEART)] = 1.4
+
         
     def week(self):
         # map iteration -> week roughly (7 iterations per week)
@@ -338,7 +345,7 @@ class OffLatticeEngine:
                     elif name.startswith('kidney'):
                         target = CellType.KIDNEY
                         priority = 20
-                    elif name.startswith('lungs'):
+                    elif name.startswith('lungs') and w >= 9:
                         target = CellType.LUNG
                         priority = 25
                     elif name.startswith('eye'):
@@ -444,7 +451,7 @@ class OffLatticeEngine:
             # More defined fetal structure
             t['head'] = (cx, cy - 70, 35 + int(10 * growth))
             t['brain'] = (cx, cy - 70, 18 + int(6 * growth))
-            t['body'] = (cx, cy, 50 + int(18 * growth))
+            t['body'] = (cx, cy, 50 + int(12 * growth))
             
             # Limbs more developed
             arm_y = cy - 25
@@ -456,13 +463,13 @@ class OffLatticeEngine:
             t['leg_right'] = (cx + 22, leg_y, 22 + int(5 * growth))
             
             # Organs developing and refining
-            t['heart'] = (cx - 15, cy - 30, 14 + int(3 * growth))
-            t['liver'] = (cx + 18, cy - 18, 16 + int(4 * growth))
+            t['heart'] = (cx - 15, cy - 30, 8 + int(2 * growth))
+            t['liver'] = (cx + 18, cy - 18, 8 + int(2 * growth))
             t['lungs'] = (cx, cy - 32, 15 + int(3 * growth))
             t['stomach'] = (cx - 10, cy - 5, 13 + int(3 * growth))
             t['intestine'] = (cx + 8, cy + 8, 16 + int(4 * growth))
-            t['kidney_l'] = (cx - 22, cy - 10, 9 + int(2 * growth))
-            t['kidney_r'] = (cx + 22, cy - 10, 9 + int(2 * growth))
+            t['kidney_l'] = (cx - 22, cy - 10, 8 + int(2 * growth))
+            t['kidney_r'] = (cx + 22, cy - 10, 8 + int(2 * growth))
             t['bladder'] = (cx, cy + 22, 11 + int(2 * growth))
             
             # Eyes more defined
@@ -801,8 +808,8 @@ class FetalDevelopmentUI:
 
     def draw_info_panel(self):
         px, py = 650, 100
-        pygame.draw.rect(self.screen, (60,40,100), (px, py, 520, 180), border_radius=10)
-        pygame.draw.rect(self.screen, (140,70,200), (px, py, 520, 180), 2, border_radius=10)
+        pygame.draw.rect(self.screen, (60,40,100), (px, py, 520, 200), border_radius=10)
+        pygame.draw.rect(self.screen, (140,70,200), (px, py, 520, 200), 2, border_radius=10)
 
         stage_title = self.font.render("Stage", True, (255,255,255))
         week_text = self.font.render(f"Week: {self.week()}", True, (255,220,180))
@@ -854,8 +861,8 @@ class FetalDevelopmentUI:
 
     def draw_legend(self):
         lx, ly = 650, 500
-        pygame.draw.rect(self.screen, (40,40,60), (lx, ly, 520, 280), border_radius=10)
-        pygame.draw.rect(self.screen, (140,70,200), (lx, ly, 520, 280), 2, border_radius=10)
+        pygame.draw.rect(self.screen, (40,40,60), (lx, ly, 520, 200), border_radius=10)
+        pygame.draw.rect(self.screen, (140,70,200), (lx, ly, 520, 200), 2, border_radius=10)
         title = self.font.render("Cell Types", True, (255,255,255))
         self.screen.blit(title, (lx+20, ly+8))
 
