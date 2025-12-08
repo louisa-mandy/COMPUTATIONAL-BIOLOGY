@@ -128,7 +128,8 @@ This will:
 
 ## 🎀 Files in This Repo
 
-- 💝 `Baby_Organ.py` - Main simulator (the star of the show!)
+- 💝 `Baby_Organ.py` - Simulator for Cellular Potts Model 
+- 🎀 'off_lattice.py' - Simulator for off lattice algorithm Model
 - 🧪 `test_simulator.py` - Comprehensive test suite with chart generation
 - 📖 `CHART_GUIDE.md` - Your guide to understanding all the pretty graphs
 - 🌟 `README.md` - You are here! ✨
