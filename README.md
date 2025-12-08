@@ -34,7 +34,8 @@ pip install pygame numpy scipy matplotlib psutil
 ### 2. Run the Simulator 🚀
 
 ```bash
-python Baby_Organ.py
+python Baby_Organ.py'
+python off_lattice.py
 ```
 
 ### 3. Play Around! 🎮
