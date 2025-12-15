@@ -164,39 +164,6 @@ The simulator uses a carefully curated color scheme:
 
 ---
 
-## 🤝 Contributing
-
-Wanna make this even more fabulous? Pull requests are welcome! 
-
-### Ideas for Future Cuteness:
-- [ ] More organ types
-- [ ] Sound effects (imagine little heartbeat sounds! 💓)
-- [ ] Export development videos
-- [ ] 3D visualization mode
-- [ ] Cell lineage tracking
-- [ ] Machine learning predictions
-
----
-
-## 📜 License
-
-This project is open source and available under the MIT License. Share the love! 💕
-
----
-
-## 🌟 Credits
-
-Made with 💖, ☕, and **way too much computational biology knowledge**
-
-Special thanks to:
-- Python 🐍
-- Pygame 🎮
-- NumPy & SciPy 🔢
-- Matplotlib 📊
-- All the scientists who study embryology 🔬
-
----
-
 <div align="center">
 
 ### 💝 Remember: Every simulation is unique, just like you! 💝
