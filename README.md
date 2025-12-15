@@ -153,15 +153,12 @@ This will:
 - Memory: Optimized numpy arrays
 
 ---
-
-## 🎨 Color Palette (Because Aesthetics Matter!)
-
-The simulator uses a carefully curated color scheme:
-- Soft pinks for embryonic tissue 💕
-- Purple accents for placenta 💜
-- Distinct organ colors for clarity 🌈
-- Dark background for that *vibe* 🌙
-
+### Dependencies 🧿
+- Python 3.9+
+- pygame (visualization and UI)
+- numpy (numerical computation)
+- scipy (morphogen diffusion)
+- psutil (performance monitoring)
 ---
 
 <div align="center">
