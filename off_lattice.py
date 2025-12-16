@@ -113,6 +113,7 @@ class OffLatticeEngine:
         self.cells = []
         self.iteration = 0
         self.time = 0.0
+        self.max_cells = 5000  # performance cap
 
         # parameters that UI can change
         self.params = {
@@ -179,6 +180,14 @@ class OffLatticeEngine:
         return min(40, max(1, (self.iteration // 7) + 1))
 
     def step(self, dt=1.0):
+        # Stop simulation growth at week 40
+        if self.week() >= 40:
+            return
+    
+        # STOP SIMULATION AT WEEK 40
+        if self.week() >= 40:
+            return
+
         # compute forces
         n = len(self.cells)
         positions = np.array([[c.x, c.y] for c in self.cells])
@@ -265,6 +274,10 @@ class OffLatticeEngine:
         self._differentiation_pass()
         
     def _division_pass(self):
+        if self.week() >= 40 or len(self.cells) >= self.max_cells:
+            return
+        
+        
         # probabilistic division based on growth_rate and local crowding
         new_cells = []
         for c in self.cells:
@@ -993,6 +1006,8 @@ class FetalDevelopmentUI:
                 self.last_perf_update = current_time
 
             if self.is_running:
+                if self.week() >= 40:
+                    self.is_running = False
                 # step engine multiple times depending on speed (allow fractional via dt)
                 speed = max(0.01, float(self.params['speed']))
                 steps = int(max(1, math.floor(speed)))
