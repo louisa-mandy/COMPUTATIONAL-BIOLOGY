@@ -126,6 +126,14 @@ This will:
 
 ---
 
+## 🌸 Video Demo Output
+
+Off Lattice : https://youtu.be/vUHTjr4x1vc
+
+CPM : https://youtu.be/_Lf0o4EGuko
+
+---
+
 ## 🎀 Files in This Repo
 
 - 💝 `Baby_Organ.py` - Simulator for Cellular Potts Model 
